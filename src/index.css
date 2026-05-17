@@ -278,6 +278,72 @@ kbd {
   letter-spacing: 0.04em;
 }
 
+.theme-spec {
+  font-size: 10px;
+  opacity: 0.55;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* ---- In-game HUD ---------------------------------------------------------*/
+.hud-row {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.hud-chip {
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hud-chip-stage {
+  background: rgba(255, 255, 255, 0.85);
+  color: #000;
+}
+
+.stage-flash {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  animation: stage-flash 1.6s ease-out forwards;
+}
+
+@keyframes stage-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -55%) scale(0.95);
+  }
+}
+
 /* ---- Primary buttons -----------------------------------------------------*/
 .button-row {
   display: flex;

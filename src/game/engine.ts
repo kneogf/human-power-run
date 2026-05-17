@@ -6,14 +6,22 @@
 
 import { playCoin, playGameOver, playJump } from './audio';
 import { CHARACTER_DRAWERS } from './characters';
-import { THEME_PALETTES, drawBackground } from './themes';
+import {
+  COURSES,
+  getStageIndex,
+  resolveRegion,
+  resolveSpeedStage,
+} from './courses';
+import { DECORATION_DRAWERS } from './decorations';
+import { drawSky, getSkyState } from './timeofday';
 import type {
   Character,
   Coin,
+  CourseId,
   Particle,
   Platform,
   Player,
-  ThemeId,
+  Region,
 } from './types';
 
 // ---- チューニング ---------------------------------------------------------
@@ -66,14 +74,16 @@ export interface GameHandle {
   stop(): void;
   jump(): void;
   setLateral(dir: -1 | 0 | 1): void;
-  setTheme(theme: ThemeId): void;
+  setCourse(course: CourseId): void;
   destroy(): void;
 }
 
 export interface GameCallbacks {
   onScore?: (score: number) => void;
   onGameOver?: (finalScore: number) => void;
-  initialTheme?: ThemeId;
+  onStageChange?: (stageIndex: number, label: string) => void;
+  onRegionChange?: (regionName: string) => void;
+  initialCourse?: CourseId;
 }
 
 // ---- メイン ---------------------------------------------------------------
@@ -125,7 +135,9 @@ export function createGame(
   let score = 0;
   let lateralDir: -1 | 0 | 1 = 0;
   let bgScroll = 0;
-  let currentTheme: ThemeId = callbacks.initialTheme ?? 'mono';
+  let currentCourseId: CourseId = callbacks.initialCourse ?? 'japan';
+  let lastStageIndex = -1;
+  let lastRegionName = '';
 
   // --- ヘルパー ---
 
@@ -134,20 +146,24 @@ export function createGame(
 
   const currentSpeed = (): number => {
     if (!character) return 0;
-    const bonus = Math.min(
-      TUNING.speedMaxBonus,
-      (score / TUNING.speedRampScore) * 0.3,
-    );
-    return character.speed + bonus;
+    const course = COURSES[currentCourseId];
+    const stage = resolveSpeedStage(score);
+    // 段階倍率 × コース倍率 × キャラの基準速度
+    return character.speed * stage.multiplier * course.speedMultiplier;
   };
 
-  const currentGapMax = (): number =>
-    TUNING.platformGapMax +
-    Math.min(TUNING.gapMaxBonus, (score / TUNING.speedRampScore) * 10);
+  const currentGapMax = (): number => {
+    const course = COURSES[currentCourseId];
+    const stage = resolveSpeedStage(score);
+    // gap も同じ段階に従って広がる
+    const stageGapBonus = (stage.multiplier - 1) * 50;
+    return (TUNING.platformGapMax + stageGapBonus) * course.gapMultiplier;
+  };
 
-  const currentYJitter = (): number =>
-    TUNING.platformYJitter +
-    Math.min(TUNING.yJitterMaxBonus, (score / TUNING.speedRampScore) * 6);
+  const currentYJitter = (): number => {
+    const stage = resolveSpeedStage(score);
+    return TUNING.platformYJitter + (stage.multiplier - 1) * 30;
+  };
 
   const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
@@ -328,6 +344,22 @@ export function createGame(
     score += speed * TUNING.distanceScorePerFrame;
     callbacks.onScore?.(score);
 
+    // ステージ変化を通知
+    const stageIdx = getStageIndex(score);
+    if (stageIdx !== lastStageIndex) {
+      lastStageIndex = stageIdx;
+      const stage = resolveSpeedStage(score);
+      callbacks.onStageChange?.(stageIdx, stage.label);
+    }
+
+    // 地域変化を通知
+    const course = COURSES[currentCourseId];
+    const { current: region } = resolveRegion(course, score);
+    if (region.name !== lastRegionName) {
+      lastRegionName = region.name;
+      callbacks.onRegionChange?.(region.name);
+    }
+
     // 走り/車輪のアニメ位相
     player.animPhase += player.onGround ? 0.6 : 0.2;
 
@@ -342,31 +374,34 @@ export function createGame(
 
   // --- 描画 ---
 
+  const getCurrentRegion = (): Region => {
+    const course = COURSES[currentCourseId];
+    return resolveRegion(course, score).current;
+  };
+
   const drawPlatform = (p: Platform) => {
-    const palette = THEME_PALETTES[currentTheme];
-    // 本体
-    ctx.fillStyle = palette.groundFill;
+    const region = getCurrentRegion();
+    const fill = region.groundFill ?? '#000';
+    const stroke = region.groundStroke ?? '#fff';
+    ctx.fillStyle = fill;
     ctx.fillRect(p.x, p.y, p.width, p.height);
-    // 上辺ハイライト
-    ctx.fillStyle = palette.groundStroke;
+    ctx.fillStyle = stroke;
     ctx.fillRect(p.x, p.y, p.width, 2);
-    // 縁
-    ctx.strokeStyle = palette.groundStroke;
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
     ctx.strokeRect(p.x, p.y, p.width, p.height);
   };
 
   const drawCoin = (c: Coin) => {
-    const palette = THEME_PALETTES[currentTheme];
     const wobble = Math.sin(c.phase) * 2;
-    ctx.fillStyle = palette.coinFill;
+    ctx.fillStyle = '#ffd166';
     ctx.beginPath();
     ctx.arc(c.x, c.y + wobble, c.r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = palette.coinStroke;
+    ctx.strokeStyle = '#5a2a00';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = palette.coinStroke;
+    ctx.fillStyle = '#5a2a00';
     ctx.beginPath();
     ctx.arc(c.x, c.y + wobble, c.r * 0.35, 0, Math.PI * 2);
     ctx.fill();
@@ -388,9 +423,42 @@ export function createGame(
     drawer(ctx, player.x, player.y, player.width, player.height, player.animPhase);
   };
 
+  const drawDecorationsForCurrentRegion = () => {
+    const course = COURSES[currentCourseId];
+    const { current, next, blend } = resolveRegion(course, score);
+    // 現在の地域の装飾
+    for (const decoId of current.decorations) {
+      const drawer = DECORATION_DRAWERS[decoId];
+      drawer(ctx, logicalW, logicalH, baseY(), bgScroll);
+    }
+    // 次の地域へ近づいたらクロスフェード（blend > 0.85 で次の装飾も重ねる）
+    if (next && blend > 0.85) {
+      const alpha = (blend - 0.85) / 0.15;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, alpha);
+      for (const decoId of next.decorations) {
+        const drawer = DECORATION_DRAWERS[decoId];
+        drawer(ctx, logicalW, logicalH, baseY(), bgScroll);
+      }
+      ctx.restore();
+    }
+  };
+
   const draw = () => {
     ctx.clearRect(0, 0, logicalW, logicalH);
-    drawBackground(ctx, currentTheme, logicalW, logicalH, baseY(), bgScroll);
+    // 距離ベースで時間帯を計算 → 空 + 太陽/月 + 星
+    const skyState = getSkyState(score, logicalW, logicalH);
+    drawSky(ctx, skyState, logicalW, logicalH);
+    // 地域の装飾
+    drawDecorationsForCurrentRegion();
+    // 地平線
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, baseY() + 10);
+    ctx.lineTo(logicalW, baseY() + 10);
+    ctx.stroke();
+    // プラットフォーム → コイン → パーティクル → プレイヤー
     for (const p of platforms) drawPlatform(p);
     for (const c of coins) drawCoin(c);
     drawParticles();
@@ -403,6 +471,8 @@ export function createGame(
     character = ch;
     score = 0;
     bgScroll = 0;
+    lastStageIndex = -1;
+    lastRegionName = '';
     player = {
       x: TUNING.playerX,
       y: baseY() - TUNING.playerH - 10,
@@ -441,8 +511,8 @@ export function createGame(
     lateralDir = dir;
   };
 
-  const setTheme: GameHandle['setTheme'] = (theme) => {
-    currentTheme = theme;
+  const setCourse: GameHandle['setCourse'] = (course) => {
+    currentCourseId = course;
     // ゲーム未開始時でも背景だけ更新したいので 1 フレーム描画
     if (!running) {
       draw();
@@ -454,5 +524,5 @@ export function createGame(
     window.removeEventListener('resize', onResize);
   };
 
-  return { start, stop, jump, setLateral, setTheme, destroy };
+  return { start, stop, jump, setLateral, setCourse, destroy };
 }

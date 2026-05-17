@@ -4,20 +4,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { setMuted, unlockAudio } from './game/audio';
 import { CHARACTERS } from './game/characters';
+import { COURSES } from './game/courses';
 import { createGame, type GameHandle } from './game/engine';
-import { THEMES } from './game/themes';
-import type { CharacterId, GameStatus, ThemeId } from './game/types';
+import type { CharacterId, CourseId, GameStatus } from './game/types';
 
 const BEST_KEY = 'hpr_best';
 const NAME_KEY = 'hpr_name';
-const THEME_KEY = 'hpr_theme';
+const COURSE_KEY = 'hpr_course';
 const MUTE_KEY = 'hpr_muted';
 // 難度順（易 → 難）で並べる
 const CHARACTER_ORDER: CharacterId[] = ['baby_carriage', 'runner', 'bike', 'rickshaw'];
-const THEME_ORDER: ThemeId[] = ['mono', 'gump', 'route66'];
+const COURSE_ORDER: CourseId[] = ['japan', 'usa', 'africa'];
 
-const isValidThemeId = (v: string | null): v is ThemeId =>
-  v === 'mono' || v === 'gump' || v === 'route66';
+const isValidCourseId = (v: string | null): v is CourseId =>
+  v === 'japan' || v === 'usa' || v === 'africa';
 
 // リーダーボードAPIのレスポンス型
 interface ScoreEntry {
@@ -55,10 +55,14 @@ const submitScore = async (
 export function App() {
   const [status, setStatus] = useState<GameStatus>('select');
   const [selected, setSelected] = useState<CharacterId>('baby_carriage');
-  const [theme, setTheme] = useState<ThemeId>(() => {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(THEME_KEY) : null;
-    return isValidThemeId(raw) ? raw : 'mono';
+  const [courseId, setCourseId] = useState<CourseId>(() => {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(COURSE_KEY) : null;
+    return isValidCourseId(raw) ? raw : 'japan';
   });
+  const [stageLabel, setStageLabel] = useState<string>('STAGE 1');
+  const [regionName, setRegionName] = useState<string>('');
+  const [stageFlash, setStageFlash] = useState<string | null>(null);
+  const stageFlashTimer = useRef<number | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => {
     return typeof window !== 'undefined' && localStorage.getItem(MUTE_KEY) === '1';
   });
@@ -94,8 +98,23 @@ export function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const game = createGame(canvas, {
-      initialTheme: theme,
+      initialCourse: courseId,
       onScore: (s) => setScore(s),
+      onStageChange: (idx, label) => {
+        setStageLabel(label);
+        // 最初の表示はフラッシュしない（STAGE 1 開始時）
+        if (idx > 0) {
+          setStageFlash(`${label} UP!`);
+          if (stageFlashTimer.current !== null) {
+            window.clearTimeout(stageFlashTimer.current);
+          }
+          stageFlashTimer.current = window.setTimeout(() => {
+            setStageFlash(null);
+            stageFlashTimer.current = null;
+          }, 1600);
+        }
+      },
+      onRegionChange: (name) => setRegionName(name),
       onGameOver: (finalScore) => {
         const floored = Math.floor(finalScore);
         setStatus('gameover');
@@ -119,15 +138,15 @@ export function App() {
     };
   }, []);
 
-  // テーマ変更をゲームに反映 + localStorage 保存
+  // コース変更をゲームに反映 + localStorage 保存
   useEffect(() => {
-    gameRef.current?.setTheme(theme);
+    gameRef.current?.setCourse(courseId);
     try {
-      localStorage.setItem(THEME_KEY, theme);
+      localStorage.setItem(COURSE_KEY, courseId);
     } catch {
       // ignore
     }
-  }, [theme]);
+  }, [courseId]);
 
   // ミュート状態を audio モジュールに反映 + 保存
   useEffect(() => {
@@ -179,25 +198,21 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleStart = useCallback(() => {
+  const beginRun = useCallback(() => {
     unlockAudio();
     const ch = CHARACTERS[selected];
     setScore(0);
+    setStageLabel('STAGE 1');
+    setStageFlash(null);
+    setRegionName(COURSES[courseId].regions[0]?.name ?? '');
     setStatus('playing');
     setSubmitState('idle');
     setSubmitError(null);
     gameRef.current?.start(ch);
-  }, [selected]);
+  }, [selected, courseId]);
 
-  const handleRestart = useCallback(() => {
-    unlockAudio();
-    const ch = CHARACTERS[selected];
-    setScore(0);
-    setStatus('playing');
-    setSubmitState('idle');
-    setSubmitError(null);
-    gameRef.current?.start(ch);
-  }, [selected]);
+  const handleStart = beginRun;
+  const handleRestart = beginRun;
 
   const handleReset = useCallback(() => {
     gameRef.current?.stop();
@@ -317,6 +332,15 @@ export function App() {
           className="game-canvas"
           onPointerDown={onCanvasPointerDown}
         />
+        {status === 'playing' && (
+          <div className="hud-row">
+            <span className="hud-chip">{regionName}</span>
+            <span className="hud-chip hud-chip-stage">{stageLabel}</span>
+          </div>
+        )}
+        {stageFlash && status === 'playing' && (
+          <div className="stage-flash">{stageFlash}</div>
+        )}
 
         {status === 'select' && (
           <Overlay>
@@ -342,20 +366,23 @@ export function App() {
               })}
             </div>
 
-            <div className="section-label">WORLD</div>
+            <div className="section-label">COURSE</div>
             <div className="theme-list">
-              {THEME_ORDER.map((id) => {
-                const t = THEMES[id];
-                const isOn = theme === id;
+              {COURSE_ORDER.map((id) => {
+                const c = COURSES[id];
+                const isOn = courseId === id;
                 return (
                   <button
                     key={id}
                     type="button"
                     className={`theme-btn ${isOn ? 'is-on' : ''}`}
-                    onClick={() => setTheme(id)}
+                    onClick={() => setCourseId(id)}
                   >
-                    <span className="theme-name">{t.name}</span>
-                    <span className="theme-tag">{t.tagline}</span>
+                    <span className="theme-name">{c.name}</span>
+                    <span className="theme-tag">{c.tagline}</span>
+                    <span className="theme-spec">
+                      難度 {'★'.repeat(c.difficulty)}{'☆'.repeat(3 - c.difficulty)} / 速度 ×{c.speedMultiplier.toFixed(2)}
+                    </span>
                   </button>
                 );
               })}
