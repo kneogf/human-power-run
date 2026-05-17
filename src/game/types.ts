@@ -1,9 +1,18 @@
 // ゲーム内で使う基本型をまとめたファイル。
 // キャラ仕様・ゲーム状態・描画オブジェクトの型を 1 箇所で管理する。
 
-export type CharacterId = 'runner' | 'bike' | 'rickshaw';
+export type CharacterId = 'baby_carriage' | 'runner' | 'bike' | 'rickshaw';
 
 export type GameStatus = 'select' | 'playing' | 'gameover';
+
+/** 背景・地面色のテーマ。後から世界観を増やせるよう列挙にしてある */
+export type ThemeId = 'mono' | 'gump' | 'route66';
+
+export interface Theme {
+  id: ThemeId;
+  name: string;
+  tagline: string;
+}
 
 export interface Character {
   id: CharacterId;

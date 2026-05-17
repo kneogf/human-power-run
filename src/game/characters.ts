@@ -1,14 +1,26 @@
-// 3キャラのパラメータと描画関数。
+// 4キャラのパラメータと描画関数。
 // 後から新キャラ（ガンプ鈴木スタイル、Route66風、など）を足せるよう、
 // すべて (ctx, x, y, w, h, phase) を受ける純粋関数にしてある。
+//
+// 難度順は CHARACTER_ORDER (App.tsx) で管理:
+//   baby_carriage(易) → runner → bike → rickshaw(難)
 
 import type { Character, CharacterId } from './types';
 
 export const CHARACTERS: Record<CharacterId, Character> = {
+  baby_carriage: {
+    id: 'baby_carriage',
+    name: 'ベビーカー',
+    tagline: '★☆☆☆ ふわっと跳ぶ / 超初心者向け',
+    speed: 4.0,
+    jumpPower: -16,
+    gravity: 0.62,
+    maxJumps: 2,
+  },
   runner: {
     id: 'runner',
     name: '人が走る',
-    tagline: '軽い / 2段ジャンプ / 初心者向け',
+    tagline: '★★☆☆ 軽快 / 2段ジャンプ / 初心者向け',
     speed: 4.8,
     jumpPower: -15,
     gravity: 0.72,
@@ -17,7 +29,7 @@ export const CHARACTERS: Record<CharacterId, Character> = {
   bike: {
     id: 'bike',
     name: '自転車',
-    tagline: '標準 / 2段ジャンプ / バランス型',
+    tagline: '★★★☆ 速め / 2段ジャンプ / バランス型',
     speed: 5.4,
     jumpPower: -14,
     gravity: 0.72,
@@ -26,10 +38,10 @@ export const CHARACTERS: Record<CharacterId, Character> = {
   rickshaw: {
     id: 'rickshaw',
     name: '人力車',
-    tagline: '重い / 1段ジャンプ / 上級者向け',
-    speed: 4.5,
-    jumpPower: -13,
-    gravity: 0.78,
+    tagline: '★★★★ 速い・重い・1段のみ / 上級者向け',
+    speed: 5.6,
+    jumpPower: -12,
+    gravity: 0.88,
     maxJumps: 1,
   },
 };
@@ -258,7 +270,97 @@ const drawRickshaw: CharacterDrawer = (ctx, x, y, w, h, phase) => {
   ctx.stroke();
 };
 
+// ---- ベビーカー -----------------------------------------------------------
+
+const drawBabyCarriage: CharacterDrawer = (ctx, x, y, w, h, phase) => {
+  // 押す人（後方）+ ベビーカー本体（前方）+ 赤ちゃんシルエット。
+  const pusherCx = x + w * 0.18;
+  const pusherHeadR = h * 0.13;
+  const pusherHeadY = y + h * 0.22;
+  const bodyTop = pusherHeadY + pusherHeadR;
+  const bodyBottom = y + h * 0.65;
+  const legSwing = Math.sin(phase * 0.6) * (h * 0.18);
+
+  // 押す人 — 棒人間
+  fill(ctx, '#fff');
+  ctx.beginPath();
+  ctx.arc(pusherCx, pusherHeadY, pusherHeadR, 0, Math.PI * 2);
+  ctx.fill();
+
+  stroke(ctx, '#fff', 3);
+  ctx.beginPath();
+  ctx.moveTo(pusherCx, bodyTop);
+  ctx.lineTo(pusherCx + 4, bodyBottom);
+  ctx.stroke();
+
+  // 足
+  ctx.beginPath();
+  ctx.moveTo(pusherCx + 4, bodyBottom);
+  ctx.lineTo(pusherCx + 4 + legSwing, y + h);
+  ctx.moveTo(pusherCx + 4, bodyBottom);
+  ctx.lineTo(pusherCx + 4 - legSwing, y + h);
+  ctx.stroke();
+
+  // ベビーカー本体（箱 + フード）
+  const bodyX = x + w * 0.32;
+  const bodyY = y + h * 0.42;
+  const bodyW = w * 0.55;
+  const bodyH = h * 0.35;
+
+  // ハンドル（押す人の手 → 本体上部）
+  stroke(ctx, '#fff', 3);
+  ctx.beginPath();
+  ctx.moveTo(pusherCx + 4, bodyTop + (bodyBottom - bodyTop) * 0.35);
+  ctx.lineTo(bodyX, bodyY + 2);
+  ctx.stroke();
+
+  // 箱
+  fill(ctx, '#000');
+  ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+  stroke(ctx, '#fff', 2);
+  ctx.strokeRect(bodyX, bodyY, bodyW, bodyH);
+
+  // フード（弧）
+  ctx.beginPath();
+  ctx.arc(bodyX + bodyW * 0.35, bodyY, bodyW * 0.4, Math.PI, 0);
+  ctx.stroke();
+
+  // 赤ちゃんのシルエット（小さな顔）
+  fill(ctx, 'rgba(255,255,255,0.6)');
+  ctx.beginPath();
+  ctx.arc(bodyX + bodyW * 0.35, bodyY + bodyH * 0.25, bodyH * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 車輪 × 2（前後）
+  const wheelR = h * 0.13;
+  const wheelY = y + h - wheelR - 1;
+  const wheelLX = bodyX + bodyW * 0.15;
+  const wheelRX = bodyX + bodyW * 0.85;
+
+  const drawWheel = (wx: number, wy: number) => {
+    fill(ctx, '#000');
+    ctx.beginPath();
+    ctx.arc(wx, wy, wheelR, 0, Math.PI * 2);
+    ctx.fill();
+    stroke(ctx, '#fff', 2);
+    ctx.beginPath();
+    ctx.arc(wx, wy, wheelR, 0, Math.PI * 2);
+    ctx.stroke();
+    // スポーク（軽め）
+    for (let i = 0; i < 3; i++) {
+      const a = phase * 0.3 + (i * Math.PI) / 3;
+      ctx.beginPath();
+      ctx.moveTo(wx, wy);
+      ctx.lineTo(wx + Math.cos(a) * wheelR, wy + Math.sin(a) * wheelR);
+      ctx.stroke();
+    }
+  };
+  drawWheel(wheelLX, wheelY);
+  drawWheel(wheelRX, wheelY);
+};
+
 export const CHARACTER_DRAWERS: Record<CharacterId, CharacterDrawer> = {
+  baby_carriage: drawBabyCarriage,
   runner: drawRunner,
   bike: drawBike,
   rickshaw: drawRickshaw,

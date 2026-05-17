@@ -4,8 +4,17 @@
 // パラメータ（物理・難度・生成）は冒頭の TUNING にまとめてある。
 // ここを触れば挙動を一気に調整できる。
 
+import { playCoin, playGameOver, playJump } from './audio';
 import { CHARACTER_DRAWERS } from './characters';
-import type { Character, Coin, Particle, Platform, Player } from './types';
+import { THEME_PALETTES, drawBackground } from './themes';
+import type {
+  Character,
+  Coin,
+  Particle,
+  Platform,
+  Player,
+  ThemeId,
+} from './types';
 
 // ---- チューニング ---------------------------------------------------------
 
@@ -57,12 +66,14 @@ export interface GameHandle {
   stop(): void;
   jump(): void;
   setLateral(dir: -1 | 0 | 1): void;
+  setTheme(theme: ThemeId): void;
   destroy(): void;
 }
 
 export interface GameCallbacks {
   onScore?: (score: number) => void;
   onGameOver?: (finalScore: number) => void;
+  initialTheme?: ThemeId;
 }
 
 // ---- メイン ---------------------------------------------------------------
@@ -114,6 +125,7 @@ export function createGame(
   let score = 0;
   let lateralDir: -1 | 0 | 1 = 0;
   let bgScroll = 0;
+  let currentTheme: ThemeId = callbacks.initialTheme ?? 'mono';
 
   // --- ヘルパー ---
 
@@ -298,6 +310,7 @@ export function createGame(
         c.collected = true;
         score += TUNING.coinValue;
         spawnCoinParticles(c.x, c.y);
+        playCoin();
       }
     }
     coins = coins.filter((c) => !c.collected);
@@ -321,6 +334,7 @@ export function createGame(
     // 死亡判定（落下）
     if (player.y > logicalH + 80) {
       running = false;
+      playGameOver();
       callbacks.onGameOver?.(score);
       cancelAnimationFrame(rafId);
     }
@@ -328,76 +342,31 @@ export function createGame(
 
   // --- 描画 ---
 
-  const drawBackground = () => {
-    // 空（黒〜濃灰のグラデ）
-    const sky = ctx.createLinearGradient(0, 0, 0, logicalH);
-    sky.addColorStop(0, '#0a0a0a');
-    sky.addColorStop(1, '#2a2a2a');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, logicalW, logicalH);
-
-    // 太陽（白円 + 黒フチ）
-    ctx.save();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(logicalW * 0.82, logicalH * 0.25, 38, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-
-    // 山（パララックスでスクロール）
-    const mountains = 6;
-    ctx.fillStyle = '#1a1a1a';
-    ctx.strokeStyle = '#3a3a3a';
-    ctx.lineWidth = 2;
-    const baseMountY = baseY() + 10;
-    for (let i = 0; i < mountains; i++) {
-      const spacing = logicalW / 3;
-      const mx = ((i * spacing + bgScroll) % (logicalW + spacing)) - spacing / 2;
-      const mh = 80 + (i % 3) * 30;
-      ctx.beginPath();
-      ctx.moveTo(mx, baseMountY);
-      ctx.lineTo(mx + spacing / 2, baseMountY - mh);
-      ctx.lineTo(mx + spacing, baseMountY);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // 地平線ライン
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, baseMountY);
-    ctx.lineTo(logicalW, baseMountY);
-    ctx.stroke();
-  };
-
   const drawPlatform = (p: Platform) => {
-    // 本体（黒）
-    ctx.fillStyle = '#000';
+    const palette = THEME_PALETTES[currentTheme];
+    // 本体
+    ctx.fillStyle = palette.groundFill;
     ctx.fillRect(p.x, p.y, p.width, p.height);
     // 上辺ハイライト
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = palette.groundStroke;
     ctx.fillRect(p.x, p.y, p.width, 2);
     // 縁
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = palette.groundStroke;
     ctx.lineWidth = 1;
     ctx.strokeRect(p.x, p.y, p.width, p.height);
   };
 
   const drawCoin = (c: Coin) => {
+    const palette = THEME_PALETTES[currentTheme];
     const wobble = Math.sin(c.phase) * 2;
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = palette.coinFill;
     ctx.beginPath();
     ctx.arc(c.x, c.y + wobble, c.r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = palette.coinStroke;
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = palette.coinStroke;
     ctx.beginPath();
     ctx.arc(c.x, c.y + wobble, c.r * 0.35, 0, Math.PI * 2);
     ctx.fill();
@@ -421,7 +390,7 @@ export function createGame(
 
   const draw = () => {
     ctx.clearRect(0, 0, logicalW, logicalH);
-    drawBackground();
+    drawBackground(ctx, currentTheme, logicalW, logicalH, baseY(), bgScroll);
     for (const p of platforms) drawPlatform(p);
     for (const c of coins) drawCoin(c);
     drawParticles();
@@ -464,6 +433,7 @@ export function createGame(
       player.vy = character.jumpPower;
       player.jumpsLeft -= 1;
       player.onGround = false;
+      playJump();
     }
   };
 
@@ -471,10 +441,18 @@ export function createGame(
     lateralDir = dir;
   };
 
+  const setTheme: GameHandle['setTheme'] = (theme) => {
+    currentTheme = theme;
+    // ゲーム未開始時でも背景だけ更新したいので 1 フレーム描画
+    if (!running) {
+      draw();
+    }
+  };
+
   const destroy: GameHandle['destroy'] = () => {
     stop();
     window.removeEventListener('resize', onResize);
   };
 
-  return { start, stop, jump, setLateral, destroy };
+  return { start, stop, jump, setLateral, setTheme, destroy };
 }

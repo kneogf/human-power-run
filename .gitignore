@@ -13,3 +13,4 @@ dist-ssr
 *.tsbuildinfo
 .tsbuild-node
 .vercel
+.env*.local

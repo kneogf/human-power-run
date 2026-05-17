@@ -94,6 +94,23 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+.mute-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font-size: 18px;
+  padding: 4px 10px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.mute-btn:hover {
+  border-color: var(--fg);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* ---- Stage (canvas + overlay) -------------------------------------------*/
 .stage {
   position: relative;
@@ -160,11 +177,17 @@ kbd {
 /* ---- Character buttons ---------------------------------------------------*/
 .character-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 720px) {
+  .character-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
   .character-list {
     grid-template-columns: 1fr;
   }
@@ -209,6 +232,52 @@ kbd {
   letter-spacing: 0.08em;
 }
 
+/* ---- Theme selector ------------------------------------------------------*/
+.section-label {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--muted);
+  text-align: center;
+  margin: 4px 0;
+}
+
+.theme-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.theme-btn {
+  background: var(--bg);
+  border: 1px solid var(--muted);
+  color: var(--fg);
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: inherit;
+  text-align: center;
+}
+
+.theme-btn.is-on {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.theme-name {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+}
+
+.theme-tag {
+  font-size: 10px;
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+}
+
 /* ---- Primary buttons -----------------------------------------------------*/
 .button-row {
   display: flex;
@@ -243,6 +312,132 @@ kbd {
 
 .ghost-btn:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.share-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  padding: 8px 16px;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  align-self: center;
+  margin-top: 4px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.share-btn:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+/* ---- Leaderboard ---------------------------------------------------------*/
+.leaderboard-submit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin: 4px 0;
+}
+
+.name-input {
+  appearance: none;
+  background: var(--bg);
+  border: 1px solid var(--fg);
+  color: var(--fg);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  text-align: center;
+  outline: none;
+}
+
+.name-input:focus {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.name-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-text {
+  margin: 0;
+  font-size: 12px;
+  color: #ff6b6b;
+  letter-spacing: 0.04em;
+}
+
+.leaderboard-table {
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  padding: 4px 0;
+  margin: 8px 0;
+}
+
+.leaderboard-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  text-align: left;
+}
+
+.leaderboard-row:last-child {
+  border-bottom: none;
+}
+
+.leaderboard-row:nth-child(1) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.leaderboard-row:nth-child(1) .rank,
+.leaderboard-row:nth-child(2) .rank,
+.leaderboard-row:nth-child(3) .rank {
+  color: var(--fg);
+  font-weight: 800;
+}
+
+.rank {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 700;
+  text-align: right;
+}
+
+.player-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-char {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.player-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 
 /* ---- Footer / controls --------------------------------------------------*/
