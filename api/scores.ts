@@ -15,6 +15,7 @@
 
 import { Redis } from '@upstash/redis';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { scoresLimiter, getClientIp } from './_ratelimit';
 
 const redis = Redis.fromEnv();
 const KEY = 'scores:global';
@@ -78,6 +79,17 @@ export default async function handler(
     }
 
     if (req.method === 'POST') {
+      // Rate limit
+      if (scoresLimiter) {
+        const ip = getClientIp(req);
+        const { success, reset } = await scoresLimiter.limit(ip);
+        if (!success) {
+          const retryAfter = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
+          res.setHeader('Retry-After', String(retryAfter));
+          return res.status(429).json({ error: 'too many requests' });
+        }
+      }
+
       const body =
         typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
       const rawName = String(body?.name ?? '').trim();

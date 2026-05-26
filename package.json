@@ -10,6 +10,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.38.0",
     "@vercel/node": "^5.8.2",
     "react": "^18.3.1",
