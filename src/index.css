@@ -58,6 +58,25 @@ kbd {
   font-size: clamp(20px, 4vw, 32px);
   letter-spacing: 0.12em;
   font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.title-logo {
+  /* 黒墨×赤丸の和風ロゴ。白地のままの方が映えるので白パネルに乗せる */
+  display: block;
+  height: clamp(40px, 9vw, 68px);
+  width: auto;
+  background: #ffffff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.title-fallback {
+  /* 画像が読めない時だけ表示 (App.tsx の onError で切り替え) */
+  display: none;
 }
 
 .title-accent {
@@ -149,6 +168,8 @@ kbd {
 .overlay-card {
   max-width: min(640px, 96%);
   width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   border: 1px solid var(--fg);
   background: var(--bg);
   padding: clamp(16px, 3vw, 28px);
@@ -540,4 +561,299 @@ kbd {
   background: #1a1a1a;
   color: var(--fg);
   font-family: 'SFMono-Regular', Menlo, monospace;
+}
+
+/* ---- Game Over / 支援CTA --------------------------------------------------*/
+
+.result-row {
+  display: flex;
+  justify-content: center;
+  gap: clamp(14px, 4vw, 28px);
+  flex-wrap: wrap;
+}
+
+/* コース別の旅メッセージ (Game Over) */
+.course-gameover-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 4px 0 0;
+  text-align: center;
+}
+
+.course-gameover-line {
+  font-size: clamp(13px, 3.4vw, 16px);
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--accent, #ff8c2a);
+}
+
+.support-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: clamp(12px, 2.5vw, 18px);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.support-cta-title {
+  margin: 0;
+  font-size: clamp(15px, 2.4vw, 18px);
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.support-cta-desc {
+  margin: 0;
+  font-size: clamp(11px, 1.8vw, 13px);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.boost-supporters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(255, 140, 42, 0.5);
+  background: rgba(255, 140, 42, 0.06);
+}
+
+.boost-supporters-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff8c2a;
+}
+
+.boost-supporters-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: clamp(12px, 2vw, 14px);
+}
+
+.boost-name {
+  font-weight: 700;
+}
+
+.boost-msg {
+  margin-left: 6px;
+  color: var(--muted);
+}
+
+.primary-btn-block {
+  display: block;
+  width: 100%;
+  padding: 14px 22px;
+  font-size: clamp(14px, 2.4vw, 16px);
+}
+
+.restart-row {
+  display: flex;
+  justify-content: center;
+}
+
+.primary-btn-sm {
+  padding: 8px 22px;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+}
+
+.credit {
+  margin: 2px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.credit a {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1px;
+}
+
+.credit a:hover {
+  border-bottom-color: var(--fg);
+}
+
+.support-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 420px) {
+  .support-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.support-btn {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.support-btn:hover {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.support-btn-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.support-btn-price {
+  font-size: 11px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.support-btn:hover .support-btn-price {
+  opacity: 1;
+}
+
+.support-sub-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.support-sub-link {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: 11px;
+}
+
+.support-sub-link:hover {
+  color: var(--fg);
+}
+
+.support-sub-sep {
+  opacity: 0.4;
+}
+
+.support-note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+
+/* ---- 応援機能「準備中」プレースホルダ ---- */
+.support-comingsoon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px;
+  border: 1px dashed rgba(255, 140, 42, 0.55);
+  background: rgba(255, 140, 42, 0.05);
+  border-radius: 4px;
+}
+
+.support-comingsoon-badge {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  font-weight: 800;
+  color: #ff8c2a;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 140, 42, 0.65);
+  border-radius: 2px;
+}
+
+.support-comingsoon-title {
+  margin: 0;
+  font-size: clamp(13px, 2vw, 15px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+}
+
+.support-comingsoon-desc {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.support-comingsoon-note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.campaign-cta-btn {
+  margin-top: 4px;
+}
+
+.ranking-section {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  text-align: left;
+}
+
+.ranking-summary {
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  user-select: none;
+  text-align: center;
+  list-style: none;
+}
+
+.ranking-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ranking-summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.ranking-section[open] .ranking-summary::before {
+  content: '▾ ';
+}
+
+.ranking-section > .leaderboard-submit {
+  margin-top: 10px;
+}
+
+.button-row-sub > .ghost-btn {
+  padding: 8px 14px;
+  font-size: 12px;
 }

@@ -12,7 +12,7 @@ export type GameStatus = 'select' | 'playing' | 'gameover';
 export type ThemeId = CourseId;
 
 /** プレイ可能なコース */
-export type CourseId = 'japan' | 'usa' | 'africa';
+export type CourseId = 'japan' | 'route66' | 'africa';
 
 /** 各地域に置く装飾の識別子 */
 export type DecorationId =
@@ -43,6 +43,8 @@ export interface Region {
   startDistance: number;
   name: string;
   decorations: DecorationId[];
+  /** この地域で出現しうる障害物の種類 */
+  obstacleKinds?: import('./obstacles').ObstacleKind[];
   /** 地面の色をこの地域だけ上書きしたい場合 */
   groundFill?: string;
   groundStroke?: string;

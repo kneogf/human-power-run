@@ -15,7 +15,7 @@
 
 import { Redis } from '@upstash/redis';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { scoresLimiter, getClientIp } from './_ratelimit';
+import { scoresLimiter, getClientIp } from './_ratelimit.js';
 
 const redis = Redis.fromEnv();
 const KEY = 'scores:global';

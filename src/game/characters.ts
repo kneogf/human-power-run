@@ -19,7 +19,7 @@ export const CHARACTERS: Record<CharacterId, Character> = {
   },
   runner: {
     id: 'runner',
-    name: '人が走る',
+    name: 'ラン',
     tagline: '★★☆☆ 軽快 / 2段ジャンプ / 初心者向け',
     speed: 4.8,
     jumpPower: -15,

@@ -1,12 +1,39 @@
 // UI シェル。タイトル / キャラ選択 / スコア / 操作説明 / Canvas を組み立て、
 // createGame() を介してゲームエンジンと React 状態を橋渡しする。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setMuted, unlockAudio } from './game/audio';
+import {
+  playBgm,
+  unlockBgm,
+  setBgmMuted,
+  onGameOverAudioFlow,
+} from './lib/audioManager';
 import { CHARACTERS } from './game/characters';
-import { COURSES } from './game/courses';
 import { createGame, type GameHandle } from './game/engine';
 import type { CharacterId, CourseId, GameStatus } from './game/types';
+import {
+  getCourseById,
+  getCourseMilestones,
+  getGameOverMessage,
+} from './lib/courseManager';
+import {
+  getActiveCampaign,
+  getActiveMilestones,
+  getGameOverSupporters,
+  getRoadsideBoardItem,
+} from './lib/adSlotManager';
+import { trackEvent, type TrackEventName } from './lib/tracking';
+import { SUPPORT_PLANS, type Supporter, type SupporterPlan } from './config/supporterConfig';
+import type { MilestoneSponsor } from './config/milestoneConfig';
+
+// プラン → tracking イベント名 のマップ (型安全のため明示)
+const SUPPORT_CLICK_EVENT: Record<SupporterPlan, TrackEventName> = {
+  tip: 'support_click_tip',
+  weekly_name: 'support_click_weekly_name',
+  weekly_message: 'support_click_weekly_message',
+  weekly_boost: 'support_click_weekly_boost',
+};
 
 const BEST_KEY = 'hpr_best';
 const NAME_KEY = 'hpr_name';
@@ -14,10 +41,46 @@ const COURSE_KEY = 'hpr_course';
 const MUTE_KEY = 'hpr_muted';
 // 難度順（易 → 難）で並べる
 const CHARACTER_ORDER: CharacterId[] = ['baby_carriage', 'runner', 'bike', 'rickshaw'];
-const COURSE_ORDER: CourseId[] = ['japan', 'usa', 'africa'];
+const COURSE_ORDER: CourseId[] = ['japan', 'route66', 'africa'];
 
 const isValidCourseId = (v: string | null): v is CourseId =>
-  v === 'japan' || v === 'usa' || v === 'africa';
+  v === 'japan' || v === 'route66' || v === 'africa';
+
+// localStorage に保存された値を正規化する (旧 'usa' は 'route66' へ移行)。
+const normalizeCourseId = (v: string | null): CourseId => {
+  if (v === 'usa') return 'route66';
+  return isValidCourseId(v) ? v : 'japan';
+};
+
+// コース別マイルストーンとスポンサーマイルストーンを統合して engine 形式にする。
+const buildMilestones = (courseId: CourseId): MilestoneSponsor[] => {
+  const courseMs: MilestoneSponsor[] = getCourseMilestones(courseId).map((m, i) => ({
+    id: `course_${courseId}_${i}_${m.distance}`,
+    distance: m.distance,
+    sponsorName: '',
+    message: m.message,
+    startDate: '2026-01-01',
+    endDate: '2099-12-31',
+    isActive: true,
+    courseId,
+  }));
+  // スポンサーマイルストーン: courseId 未指定 or 一致のものだけ採用。
+  const sponsorMs = getActiveMilestones().filter(
+    (m) => !m.courseId || m.courseId === courseId,
+  );
+  // 同じ distance が複数あると engine 側で 1フレーム目に片方 → 次フレームで
+  // もう片方に上書きされ、先に触った方が「一瞬しか見えない」バグ (Codex 指摘)。
+  // コースの旅ナラティブを優先して先勝ちで dedupe する。
+  const merged = [...courseMs, ...sponsorMs].sort((a, b) => a.distance - b.distance);
+  const seenDistances = new Set<number>();
+  const deduped: MilestoneSponsor[] = [];
+  for (const m of merged) {
+    if (seenDistances.has(m.distance)) continue;
+    seenDistances.add(m.distance);
+    deduped.push(m);
+  }
+  return deduped;
+};
 
 // リーダーボードAPIのレスポンス型
 interface ScoreEntry {
@@ -57,7 +120,7 @@ export function App() {
   const [selected, setSelected] = useState<CharacterId>('baby_carriage');
   const [courseId, setCourseId] = useState<CourseId>(() => {
     const raw = typeof window !== 'undefined' ? localStorage.getItem(COURSE_KEY) : null;
-    return isValidCourseId(raw) ? raw : 'japan';
+    return normalizeCourseId(raw);
   });
   const [stageLabel, setStageLabel] = useState<string>('STAGE 1');
   const [regionName, setRegionName] = useState<string>('');
@@ -85,6 +148,12 @@ export function App() {
     'idle' | 'submitting' | 'submitted' | 'error'
   >('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // --- マネタイズ層 (沿道看板 / マイルストーン / Game Over CTA) ---
+  const campaign = useMemo(() => getActiveCampaign(), []);
+  const [boostSupporters, setBoostSupporters] = useState<Supporter[]>(() =>
+    getGameOverSupporters(),
+  );
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<GameHandle | null>(null);
@@ -115,8 +184,26 @@ export function App() {
         }
       },
       onRegionChange: (name) => setRegionName(name),
+      onMilestoneReached: (m) => {
+        trackEvent('milestone_impression', {
+          id: m.id,
+          distance: m.distance,
+          message: m.message,
+          sponsor: m.sponsorName || undefined,
+        });
+      },
+      onBillboardImpression: (item) => {
+        trackEvent('roadside_billboard_impression', {
+          id: item.id,
+          source: item.source,
+          displayName: item.displayName,
+        });
+      },
       onGameOver: (finalScore) => {
         const floored = Math.floor(finalScore);
+        trackEvent('game_over', { score: floored });
+        // Game Over音声フロー: プレイ中BGMをフェードアウト → ジングル → タイトルBGM小音量
+        void onGameOverAudioFlow();
         setStatus('gameover');
         setBest((prev) => {
           if (floored > prev) {
@@ -148,15 +235,37 @@ export function App() {
     }
   }, [courseId]);
 
-  // ミュート状態を audio モジュールに反映 + 保存
+  // ミュート状態を audio モジュール (効果音 + BGM) に反映 + 保存
   useEffect(() => {
     setMuted(muted);
+    setBgmMuted(muted);
     try {
       localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
     } catch {
       // ignore
     }
   }, [muted]);
+
+  // 初回ユーザー操作で音声をアンロック (ブラウザの自動再生制限対応)。
+  // それまで予約されていた BGM (タイトル曲) がここで鳴り始める。
+  useEffect(() => {
+    const unlock = () => {
+      unlockAudio();
+      unlockBgm();
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
+  // 選択画面ではタイトルBGMを再生 (アンロック前は予約のみ)。
+  // playing は beginRun、gameover は onGameOverAudioFlow が担当するのでここでは扱わない。
+  useEffect(() => {
+    if (status === 'select') playBgm('title');
+  }, [status]);
 
   const toggleMuted = useCallback(() => {
     setMutedState((prev) => !prev);
@@ -198,27 +307,83 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const beginRun = useCallback(() => {
-    unlockAudio();
-    const ch = CHARACTERS[selected];
-    setScore(0);
-    setStageLabel('STAGE 1');
-    setStageFlash(null);
-    setRegionName(COURSES[courseId].regions[0]?.name ?? '');
-    setStatus('playing');
-    setSubmitState('idle');
-    setSubmitError(null);
-    gameRef.current?.start(ch);
-  }, [selected, courseId]);
+  const beginRun = useCallback(
+    (source: 'start' | 'retry') => {
+      unlockAudio();
+      unlockBgm();
+      // 選択中コースの BGM に切り替え (Restart時もここを通る)
+      playBgm(courseId);
+      const ch = CHARACTERS[selected];
+      setScore(0);
+      setStageLabel('STAGE 1');
+      setStageFlash(null);
+      setRegionName(getCourseById(courseId).sections[0]?.name ?? '');
+      setStatus('playing');
+      setSubmitState('idle');
+      setSubmitError(null);
+      trackEvent(source === 'retry' ? 'retry' : 'play_start', {
+        character: selected,
+        course: courseId,
+      });
+      // 最新のサポーター/マイルストーンを反映 (HMR でconfig差し替え時のため)
+      setBoostSupporters(getGameOverSupporters());
+      gameRef.current?.start(ch, {
+        milestones: buildMilestones(courseId),
+        getBillboard: getRoadsideBoardItem,
+      });
+    },
+    [selected, courseId],
+  );
 
-  const handleStart = beginRun;
-  const handleRestart = beginRun;
+  const handleStart = useCallback(() => beginRun('start'), [beginRun]);
+  const handleRestart = useCallback(() => beginRun('retry'), [beginRun]);
 
   const handleReset = useCallback(() => {
     gameRef.current?.stop();
     setScore(0);
     setStatus('select');
   }, []);
+
+  // 支援ボタンクリック (外部決済リンクへ遷移 + tracking)
+  const openSupportLink = useCallback(
+    (plan: SupporterPlan) => {
+      const url = campaign.supportLinks[plan];
+      trackEvent(SUPPORT_CLICK_EVENT[plan], {
+        plan,
+        url,
+        campaignId: campaign.id,
+      });
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    },
+    [campaign],
+  );
+
+  // キャンペーンCTAクリック (イベントモードの時の主導線)
+  const openCampaignCta = useCallback(
+    (kind: 'primary' | 'secondary') => {
+      const url =
+        kind === 'primary'
+          ? campaign.gameOverCta.primaryButtonUrl
+          : campaign.gameOverCta.secondaryButtonUrl;
+      trackEvent('campaign_cta_click', {
+        campaignId: campaign.id,
+        kind,
+        url,
+      });
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    },
+    [campaign],
+  );
+
+  // Game Over CTA表示時に1回 impression を記録
+  useEffect(() => {
+    if (status === 'gameover') {
+      trackEvent('support_cta_impression', {
+        campaignId: campaign.id,
+        boostCount: boostSupporters.length,
+      });
+    }
+  }, [status, campaign.id, boostSupporters.length]);
 
   // リーダーボードを開く（取得） & 閉じる
   const openLeaderboard = useCallback(async () => {
@@ -270,7 +435,7 @@ export function App() {
   const handleShare = useCallback(() => {
     const dist = Math.floor(score);
     const charName = CHARACTERS[selected].name;
-    const text = `HUMAN POWER RUN を ${charName} で ${dist}m 走破！ #HumanPowerRun`;
+    const text = `人力走 -JINRIKISOU- を ${charName} で ${dist}m 走破！ #人力走 #JINRIKISOU`;
     const url = 'https://human-power-run.vercel.app';
     const fullText = `${text}\n${url}`;
     type NavigatorWithShare = Navigator & {
@@ -279,7 +444,7 @@ export function App() {
     const nav = navigator as NavigatorWithShare;
     if (typeof nav.share === 'function') {
       nav
-        .share({ title: 'HUMAN POWER RUN', text, url })
+        .share({ title: '人力走 -JINRIKISOU-', text, url })
         .catch(() => {
           // ユーザーがキャンセル等 — 無視
         });
@@ -303,7 +468,21 @@ export function App() {
     <div className="app">
       <header className="app-header">
         <h1 className="title">
-          HUMAN <span className="title-accent">POWER</span> RUN
+          <img
+            src="/logo.png"
+            alt="人力走 -JINRIKISOU-"
+            className="title-logo"
+            onError={(e) => {
+              // 画像がまだ配置されていない時のフォールバック表示
+              const target = e.currentTarget;
+              target.style.display = 'none';
+              const fallback = target.nextElementSibling as HTMLElement | null;
+              if (fallback) fallback.style.display = 'inline-block';
+            }}
+          />
+          <span className="title-fallback">
+            人力走 <span className="title-accent">-JINRIKISOU-</span>
+          </span>
         </h1>
         <div className="scoreboard">
           <div className="score-cell">
@@ -369,7 +548,7 @@ export function App() {
             <div className="section-label">COURSE</div>
             <div className="theme-list">
               {COURSE_ORDER.map((id) => {
-                const c = COURSES[id];
+                const c = getCourseById(id);
                 const isOn = courseId === id;
                 return (
                   <button
@@ -377,11 +556,12 @@ export function App() {
                     type="button"
                     className={`theme-btn ${isOn ? 'is-on' : ''}`}
                     onClick={() => setCourseId(id)}
+                    style={isOn ? { borderColor: c.themeColor } : undefined}
                   >
-                    <span className="theme-name">{c.name}</span>
-                    <span className="theme-tag">{c.tagline}</span>
+                    <span className="theme-name">{c.displayName}</span>
+                    <span className="theme-tag">{c.description}</span>
                     <span className="theme-spec">
-                      難度 {'★'.repeat(c.difficulty)}{'☆'.repeat(3 - c.difficulty)} / 速度 ×{c.speedMultiplier.toFixed(2)}
+                      全6セクション / 3000m
                     </span>
                   </button>
                 );
@@ -406,56 +586,177 @@ export function App() {
         {status === 'gameover' && (
           <Overlay>
             <h2 className="overlay-title">GAME OVER</h2>
-            <p className="overlay-text">
-              Distance: <strong>{Math.floor(score)}m</strong>
-            </p>
-            <p className="overlay-text">
-              Best: <strong>{best}m</strong>
-            </p>
-
-            <div className="leaderboard-submit">
-              {submitState === 'submitted' ? (
-                <p className="overlay-text">✅ ランキングに登録しました！</p>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    className="name-input"
-                    placeholder="名前 (1〜20文字)"
-                    maxLength={20}
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    disabled={submitState === 'submitting'}
-                  />
-                  <button
-                    type="button"
-                    className="primary-btn"
-                    onClick={handleSubmitScore}
-                    disabled={submitState === 'submitting' || !playerName.trim()}
-                  >
-                    {submitState === 'submitting' ? '送信中…' : 'ランキングに登録'}
-                  </button>
-                </>
-              )}
-              {submitError && submitState === 'error' && (
-                <p className="error-text">{submitError}</p>
-              )}
+            <div className="result-row">
+              <span className="overlay-text">
+                Distance: <strong>{Math.floor(score)}m</strong>
+              </span>
+              <span className="overlay-text">
+                Best: <strong>{best}m</strong>
+              </span>
             </div>
 
-            <div className="button-row">
-              <button type="button" className="primary-btn" onClick={handleRestart}>
-                RESTART
-              </button>
+            {/* ---- コース別の旅メッセージ ---- */}
+            <p className="course-gameover-msg">
+              {getGameOverMessage(courseId)
+                .split('\n')
+                .map((line, i) => (
+                  <span key={i} className="course-gameover-line">
+                    {line}
+                  </span>
+                ))}
+            </p>
+
+            {/* ---- 支援CTA (キャンペーン枠 + 追い風サポーター) ---- */}
+            <section className="support-cta">
+              <h3 className="support-cta-title">{campaign.gameOverCta.title}</h3>
+              <p className="support-cta-desc">{campaign.gameOverCta.description}</p>
+
+              {boostSupporters.length > 0 && (
+                <div className="boost-supporters">
+                  <span className="boost-supporters-label">今週の追い風サポーター</span>
+                  <ul className="boost-supporters-list">
+                    {boostSupporters.map((s) => (
+                      <li key={s.id}>
+                        <span className="boost-name">{s.displayName ?? s.name}</span>
+                        {s.message && (
+                          <span className="boost-msg">「{s.message}」</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="restart-row">
+                <button
+                  type="button"
+                  className="primary-btn primary-btn-sm"
+                  onClick={handleRestart}
+                >
+                  RESTART
+                </button>
+              </div>
+
+              {campaign.supportEnabled ? (
+                <>
+                  <div className="support-row">
+                    <button
+                      type="button"
+                      className="support-btn"
+                      onClick={() => openSupportLink('tip')}
+                    >
+                      <span className="support-btn-label">{SUPPORT_PLANS.tip.label}</span>
+                      <span className="support-btn-price">¥{SUPPORT_PLANS.tip.price}〜</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="support-btn"
+                      onClick={() => openSupportLink('weekly_name')}
+                    >
+                      <span className="support-btn-label">
+                        {SUPPORT_PLANS.weekly_name.label}
+                      </span>
+                      <span className="support-btn-price">
+                        ¥{SUPPORT_PLANS.weekly_name.price}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="support-sub-row">
+                    <button
+                      type="button"
+                      className="support-sub-link"
+                      onClick={() => openSupportLink('weekly_message')}
+                    >
+                      {SUPPORT_PLANS.weekly_message.label} ¥{SUPPORT_PLANS.weekly_message.price}
+                    </button>
+                    <span className="support-sub-sep">/</span>
+                    <button
+                      type="button"
+                      className="support-sub-link"
+                      onClick={() => openSupportLink('weekly_boost')}
+                    >
+                      {SUPPORT_PLANS.weekly_boost.label} ¥{SUPPORT_PLANS.weekly_boost.price}
+                    </button>
+                  </div>
+
+                  <p className="support-note">
+                    掲載ありの応援は、毎週日曜23:59締切・翌週月曜反映です。
+                  </p>
+                </>
+              ) : (
+                /* Stripe Payment Link 準備前は「準備中」を表示 */
+                <div className="support-comingsoon">
+                  <div className="support-comingsoon-badge">COMING SOON</div>
+                  <p className="support-comingsoon-title">応援機能は準備中です</p>
+                  <p className="support-comingsoon-desc">
+                    差し入れ ¥{SUPPORT_PLANS.tip.price}〜 / 沿道に名前 ¥
+                    {SUPPORT_PLANS.weekly_name.price} / メッセージ ¥
+                    {SUPPORT_PLANS.weekly_message.price} / 追い風 ¥
+                    {SUPPORT_PLANS.weekly_boost.price}
+                  </p>
+                  <p className="support-comingsoon-note">
+                    近日、決済リンクを公開します。それまでは走って楽しんでください！
+                  </p>
+                </div>
+              )}
+
+              {/* キャンペーンが eventMode の時だけ専用CTAを足す */}
+              {campaign.eventMode && (
+                <button
+                  type="button"
+                  className="ghost-btn campaign-cta-btn"
+                  onClick={() => openCampaignCta('primary')}
+                >
+                  {campaign.gameOverCta.primaryButtonText}
+                </button>
+              )}
+            </section>
+
+            {/* ---- ランキング登録 (任意) ---- */}
+            <details className="ranking-section">
+              <summary className="ranking-summary">🏆 ランキングに登録する</summary>
+              <div className="leaderboard-submit">
+                {submitState === 'submitted' ? (
+                  <p className="overlay-text">✅ ランキングに登録しました！</p>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      className="name-input"
+                      placeholder="名前 (1〜20文字)"
+                      maxLength={20}
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      disabled={submitState === 'submitting'}
+                    />
+                    <button
+                      type="button"
+                      className="primary-btn"
+                      onClick={handleSubmitScore}
+                      disabled={submitState === 'submitting' || !playerName.trim()}
+                    >
+                      {submitState === 'submitting' ? '送信中…' : 'ランキングに登録'}
+                    </button>
+                  </>
+                )}
+                {submitError && submitState === 'error' && (
+                  <p className="error-text">{submitError}</p>
+                )}
+              </div>
+            </details>
+
+            <div className="button-row button-row-sub">
               <button type="button" className="ghost-btn" onClick={handleReset}>
                 RESET
               </button>
               <button type="button" className="ghost-btn" onClick={openLeaderboard}>
                 🏆 ランキング
               </button>
+              <button type="button" className="ghost-btn" onClick={handleShare}>
+                𝕏 シェア
+              </button>
             </div>
-            <button type="button" className="share-btn" onClick={handleShare}>
-              𝕏 で結果をシェア
-            </button>
           </Overlay>
         )}
 
@@ -505,6 +806,16 @@ export function App() {
           </span>
         </div>
         <p className="tagline">人力のみで走り抜けろ — どこまで進めるかが勝負。</p>
+        <p className="credit">
+          Produced by{' '}
+          <a
+            href="https://www.instagram.com/justforfun_movie/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            JustForFun inc.
+          </a>
+        </p>
       </footer>
     </div>
   );
