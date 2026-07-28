@@ -6,7 +6,7 @@
 
 import { playCoin, playJump } from './audio';
 import { CHARACTER_DRAWERS } from './characters';
-import { getStageIndex, resolveSpeedStage } from './courses';
+import { getSmoothMultiplier, getStageIndex, resolveSpeedStage } from './courses';
 import { drawCourseBackground, drawRoadRunner } from './courseRenderer';
 import type {
   Character,
@@ -227,21 +227,20 @@ export function createGame(
 
   const currentSpeed = (): number => {
     if (!character) return 0;
-    const stage = resolveSpeedStage(score);
-    // 段階倍率 × キャラの基準速度
-    return character.speed * stage.multiplier;
+    // step ではなく連続補間された倍率を使うことで、ステージ境界での
+    // 「ガクッ」を無くし、じわっと自然に速くなる。
+    return character.speed * getSmoothMultiplier(score);
   };
 
   const currentGapMax = (): number => {
-    const stage = resolveSpeedStage(score);
-    // gap も同じ段階に従って広がる
-    const stageGapBonus = (stage.multiplier - 1) * 50;
+    // gap 幅も連続的に広がる
+    const stageGapBonus = (getSmoothMultiplier(score) - 1) * 50;
     return TUNING.platformGapMax + stageGapBonus;
   };
 
   const currentYJitter = (): number => {
-    const stage = resolveSpeedStage(score);
-    return TUNING.platformYJitter + (stage.multiplier - 1) * 30;
+    // 高さのばらつきも連続的に増える
+    return TUNING.platformYJitter + (getSmoothMultiplier(score) - 1) * 30;
   };
 
   const rand = (min: number, max: number) => min + Math.random() * (max - min);
