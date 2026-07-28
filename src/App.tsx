@@ -709,7 +709,7 @@ export function App() {
             </section>
 
             {/* ---- ランキング登録 (任意) ---- */}
-            <details className="ranking-section">
+            <details className="ranking-section" open>
               <summary className="ranking-summary">🏆 ランキングに登録する</summary>
               <div className="leaderboard-submit">
                 {submitState === 'submitted' ? (
