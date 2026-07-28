@@ -732,6 +732,31 @@ kbd {
   opacity: 1;
 }
 
+/* 追い風サポーター (¥5,000) — 幅広1本のプレミアム表示 */
+.support-btn-boost {
+  width: 100%;
+  border-color: #ff8c2a;
+  color: #ffd166;
+  background: rgba(255, 140, 42, 0.08);
+  padding: 14px 16px;
+  gap: 4px;
+}
+
+.support-btn-boost:hover {
+  background: #ff8c2a;
+  color: #0a0a0a;
+}
+
+.support-btn-boost .support-btn-label {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.support-btn-boost .support-btn-price {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
 .support-sub-row {
   display: flex;
   flex-wrap: wrap;

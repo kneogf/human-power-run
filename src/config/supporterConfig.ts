@@ -3,12 +3,11 @@
 // 運用:
 //   - 日曜 23:59 締切 → 翌週月曜にこのファイルへ追記
 //   - ¥300〜の差し入れ応援 (tip) は掲載なし。showOnRoadside=false
-//   - 掲載ありは ¥500 以上から
+//   - 掲載ありは ¥1,500 以上から (weekly_message / weekly_boost)
 //   - 期間外 / isActive=false は表示されない
 
 export type SupporterPlan =
   | 'tip'              // ¥300〜 差し入れだけ。掲載なし
-  | 'weekly_name'      // ¥500 / 週 沿道に名前
   | 'weekly_message'   // ¥1,500 / 週 沿道に名前 + 一言
   | 'weekly_boost';    // ¥5,000 / 週 沿道優先 + Game Over掲載
 
@@ -30,23 +29,16 @@ export type Supporter = {
 };
 
 /** プラン定義（金額・掲載仕様の単一の真実） */
-// 価格戦略（案B）: 心理的スイートスポットに寄せた4段階。
+// 価格戦略（案B改）: 3段階に絞ってシンプル化。
 //   ¥300  差し入れ (掲載なし・気持ち)
-//   ¥500  沿道応援 (「毎週コーヒー1杯分でJFFを支える」の入り口)
-//   ¥1,500 メッセージ (中間の価値提示)
-//   ¥5,000 追い風 (熱狂ファン・法人ブリッジ)
+//   ¥1,500 メッセージ (名前+一言・掲載ありの入口)
+//   ¥5,000 追い風 (熱狂ファン・Game Over画面にも出る・法人ブリッジ)
 export const SUPPORT_PLANS = {
   tip: {
     label: '差し入れ応援',
     price: 300,
     displayed: false,
     note: '気持ちだけ。掲載は出ません。',
-  },
-  weekly_name: {
-    label: '今週の沿道応援',
-    price: 500,
-    displayed: true,
-    note: '7日間、沿道看板に名前が出ます。',
   },
   weekly_message: {
     label: '今週のメッセージ応援',
@@ -64,21 +56,6 @@ export const SUPPORT_PLANS = {
 
 /** 個人応援者リスト（サンプル） */
 export const SUPPORTERS: Supporter[] = [
-  {
-    id: 'spt_tanaka',
-    name: '田中喬祐',
-    planName: 'weekly_name',
-    displayName: '田中さん',
-    price: 500,
-    displayPeriod: 'weekly',
-    startDate: '2026-05-18',
-    endDate: '2026-05-24',
-    weight: 10,
-    isActive: false,
-    showOnRoadside: true,
-    showOnGameOver: false,
-    showOnRanking: false,
-  },
   {
     id: 'spt_nana',
     name: '佐藤なな',

@@ -34,18 +34,17 @@ export type Campaign = {
   /** プラン別の決済URL。Game Overのプラン別ボタンが押されたらここに飛ぶ */
   supportLinks: {
     tip: string;
-    weekly_name: string;
     weekly_message: string;
     weekly_boost: string;
   };
 };
 
 const COMMON_SUPPORT_LINKS = {
-  // TODO: 実運用ではStripe Payment Link / ko-fi / BASE などの本番URLに置き換える
-  tip: 'https://justforfun.example.com/support/tip',
-  weekly_name: 'https://justforfun.example.com/support/weekly-name',
-  weekly_message: 'https://justforfun.example.com/support/weekly-message',
-  weekly_boost: 'https://justforfun.example.com/support/weekly-boost',
+  // Stripe Payment Link (JPY 単発決済) — 3プラン構成
+  // 全部揃ったので default_campaign.supportEnabled を true にすれば公開される。
+  tip: 'https://buy.stripe.com/9B600jdgh2Qwee8aly7ss11', // ¥300 ✅
+  weekly_message: 'https://buy.stripe.com/8x2eVddghbn26LGfFS7ss10', // ¥1,500 ✅
+  weekly_boost: 'https://buy.stripe.com/eVqfZh0tvfDib1W9hu7ss12', // ¥5,000 ✅
 };
 
 export const CAMPAIGNS: Campaign[] = [
@@ -57,7 +56,7 @@ export const CAMPAIGNS: Campaign[] = [
     endDate: '2099-12-31',
     isActive: true,
     eventMode: false,
-    supportEnabled: false, // Stripe Payment Link 用意後に true へ
+    supportEnabled: true, // Stripe Payment Link 3本準備完了、本番公開中
     gameOverCta: {
       title: 'この旅は、みんなの応援で続いています。',
       description: '差し入れも、沿道に名前を出すのも、どちらも旅の燃料になります。',

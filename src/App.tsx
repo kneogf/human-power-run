@@ -30,7 +30,6 @@ import type { MilestoneSponsor } from './config/milestoneConfig';
 // プラン → tracking イベント名 のマップ (型安全のため明示)
 const SUPPORT_CLICK_EVENT: Record<SupporterPlan, TrackEventName> = {
   tip: 'support_click_tip',
-  weekly_name: 'support_click_weekly_name',
   weekly_message: 'support_click_weekly_message',
   weekly_boost: 'support_click_weekly_boost',
 };
@@ -639,6 +638,7 @@ export function App() {
 
               {campaign.supportEnabled ? (
                 <>
+                  {/* 主導線: ¥300 差し入れ + ¥1,500 メッセージ応援 */}
                   <div className="support-row">
                     <button
                       type="button"
@@ -651,34 +651,30 @@ export function App() {
                     <button
                       type="button"
                       className="support-btn"
-                      onClick={() => openSupportLink('weekly_name')}
+                      onClick={() => openSupportLink('weekly_message')}
                     >
                       <span className="support-btn-label">
-                        {SUPPORT_PLANS.weekly_name.label}
+                        {SUPPORT_PLANS.weekly_message.label}
                       </span>
                       <span className="support-btn-price">
-                        ¥{SUPPORT_PLANS.weekly_name.price}
+                        ¥{SUPPORT_PLANS.weekly_message.price}
                       </span>
                     </button>
                   </div>
 
-                  <div className="support-sub-row">
-                    <button
-                      type="button"
-                      className="support-sub-link"
-                      onClick={() => openSupportLink('weekly_message')}
-                    >
-                      {SUPPORT_PLANS.weekly_message.label} ¥{SUPPORT_PLANS.weekly_message.price}
-                    </button>
-                    <span className="support-sub-sep">/</span>
-                    <button
-                      type="button"
-                      className="support-sub-link"
-                      onClick={() => openSupportLink('weekly_boost')}
-                    >
-                      {SUPPORT_PLANS.weekly_boost.label} ¥{SUPPORT_PLANS.weekly_boost.price}
-                    </button>
-                  </div>
+                  {/* プレミアム: ¥5,000 追い風サポーター (幅広1本、目立たせる) */}
+                  <button
+                    type="button"
+                    className="support-btn support-btn-boost"
+                    onClick={() => openSupportLink('weekly_boost')}
+                  >
+                    <span className="support-btn-label">
+                      🔥 {SUPPORT_PLANS.weekly_boost.label}
+                    </span>
+                    <span className="support-btn-price">
+                      ¥{SUPPORT_PLANS.weekly_boost.price}
+                    </span>
+                  </button>
 
                   <p className="support-note">
                     掲載ありの応援は、毎週日曜23:59締切・翌週月曜反映です。
@@ -690,9 +686,8 @@ export function App() {
                   <div className="support-comingsoon-badge">COMING SOON</div>
                   <p className="support-comingsoon-title">応援機能は準備中です</p>
                   <p className="support-comingsoon-desc">
-                    差し入れ ¥{SUPPORT_PLANS.tip.price}〜 / 沿道に名前 ¥
-                    {SUPPORT_PLANS.weekly_name.price} / メッセージ ¥
-                    {SUPPORT_PLANS.weekly_message.price} / 追い風 ¥
+                    差し入れ ¥{SUPPORT_PLANS.tip.price}〜 / メッセージ応援 ¥
+                    {SUPPORT_PLANS.weekly_message.price} / 追い風サポーター ¥
                     {SUPPORT_PLANS.weekly_boost.price}
                   </p>
                   <p className="support-comingsoon-note">

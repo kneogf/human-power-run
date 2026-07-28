@@ -18,7 +18,6 @@ export type TrackEventName =
   | 'support_cta_impression'
   | 'sponsor_click'
   | 'support_click_tip'
-  | 'support_click_weekly_name'
   | 'support_click_weekly_message'
   | 'support_click_weekly_boost'
   | 'campaign_cta_click'

@@ -91,23 +91,21 @@ npm run typecheck   # 型チェックのみ
 | プラン | 金額 | 掲載 | 反映タイミング |
 |--------|------|------|---------------|
 | 差し入れ応援 (`tip`) | ¥300〜 | **掲載なし** | 即時 (掲載対応なし) |
-| 今週の沿道応援 (`weekly_name`) | ¥500 | 沿道に名前 (7日間) | 翌週月曜 |
 | 今週のメッセージ応援 (`weekly_message`) | ¥1,500 | 名前 + 一言 (7日間) | 翌週月曜 |
 | 追い風サポーター (`weekly_boost`) | ¥5,000 | 沿道優先 + Game Over掲載 (7日間) | 翌週月曜 |
 
-> **価格戦略メモ (案B)**: 心理的スイートスポットに寄せた4段階。
+> **価格戦略メモ (案B改)**: 3段階に絞ってシンプル化。
 > - ¥300: 気軽な差し入れ。掲載リターン無し
-> - ¥500: 「毎週コーヒー1杯分でJFFを支える」の入り口
-> - ¥1,500: 中間の価値提示
-> - ¥5,000: 熱狂ファン向け・法人スポンサーへのブリッジ
+> - ¥1,500: 名前+メッセージ掲載の入口。中間の価値提示
+> - ¥5,000: 熱狂ファン向け・Game Over画面にも登場・法人スポンサーへのブリッジ
 >
-> 掲載ありは ¥500以上。即時反映は不要 — **日曜23:59締切、翌週月曜まとめて反映**。
+> 掲載ありは ¥1,500以上。即時反映は不要 — **日曜23:59締切、翌週月曜まとめて反映**。
 
 ### 個人応援者を追加する手順
 
 1. [`src/config/supporterConfig.ts`](src/config/supporterConfig.ts) の `SUPPORTERS` 配列に1件追加
 2. `id` は `spt_xxx` で一意 (重複NG)
-3. `planName` は `tip` / `weekly_name` / `weekly_message` / `weekly_boost` のいずれか
+3. `planName` は `tip` / `weekly_message` / `weekly_boost` のいずれか
 4. `startDate` / `endDate` は `YYYY-MM-DD` (例: 月〜日の7日間)
 5. `isActive: true` で公開、`false` で停止
 6. ¥300差し入れ (`tip`) は **必ず** `showOnRoadside: false`
@@ -208,7 +206,6 @@ window.__hprEvents().reduce((acc, e) => ({...acc, [e.eventName]: (acc[e.eventNam
 | `milestone_impression` | マイルストーン距離到達時 |
 | `support_cta_impression` | Game Over CTA画面の表示 |
 | `support_click_tip` | 差し入れ ¥300 ボタンクリック |
-| `support_click_weekly_name` | 沿道に名前 ¥500 ボタン |
 | `support_click_weekly_message` | メッセージ ¥1,500 ボタン |
 | `support_click_weekly_boost` | 追い風 ¥5,000 ボタン |
 | `sponsor_click` | (将来用) 沿道看板タップで遷移 |
