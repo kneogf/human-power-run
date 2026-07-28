@@ -811,6 +811,15 @@ export function App() {
             JustForFun inc.
           </a>
         </p>
+        <p className="legal-links">
+          <a href="/legal/tokushoho.html" target="_blank" rel="noopener noreferrer">
+            特定商取引法に基づく表記
+          </a>
+          <span className="legal-sep">/</span>
+          <a href="/legal/privacy.html" target="_blank" rel="noopener noreferrer">
+            プライバシーポリシー
+          </a>
+        </p>
       </footer>
     </div>
   );
